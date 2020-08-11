@@ -20,15 +20,18 @@ ut.stringToDatetime(ordersWithReturns, ['Ship.Date', 'Order.Date'], inplace=True
 
 #ut.dateFormat(ordersWithReturns)
 ordersWithReturns['Process.Time'] = ordersWithReturns['Ship.Date'] - ordersWithReturns['Order.Date']
+ordersWithReturns['Process.Time'] = ordersWithReturns['Process.Time'].apply(lambda x: x.days)
 
-
-ut.printDict(ut.dfTypes(ordersWithReturns))
 #### Step 3:
 
 # - If a product has been returned before, it may be returned again.
 # - Let us generate a feature indictes how many times the product has been returned before.
 # - If it never got returned, we just impute using 0.
 # - ***Hint:*** Group by different Product.ID
-
-
+returnsByProduct = ordersWithReturns[ordersWithReturns['Returned'] == 'Yes'].groupby('Product.ID')[['Returned']].count()
+returnsByProduct.reset_index(inplace=True)
+ordersWithReturns = ordersWithReturns.merge(returnsByProduct, on='Product.ID', how='left')
+ordersWithReturns.rename(columns={'Returned_y': 'Returned_Count', 'Returned_x':'Returned'}, inplace=True)
+ordersWithReturns['Returned_Count'] = ordersWithReturns['Returned_Count'].fillna(0)
+ut.convertColumns(ordersWithReturns, columns=['Returned_Count'], newType=int)
 print('Finished Data Mods.')
