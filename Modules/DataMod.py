@@ -14,24 +14,26 @@ from Modules.EDA import *
 # - Your manager believes that **how long it took the order to ship** would affect whether the customer would return it or not.
 # - He wants you to generate a feature which can measure how long it takes the company to process each order.
 # - ***Hint:*** Process.Time = Ship.Date - Order.Date
-#ordersWithReturns['Process.Time'] = ordersWithReturns[]
+#orders['Process.Time'] = orders[]
 
-ut.stringToDatetime(ordersWithReturns, ['Ship.Date', 'Order.Date'], inplace=True)
+def DataMod(orders: pd.DataFrame):
+    ut.stringToDatetime(orders, ['Ship.Date', 'Order.Date'], inplace=True)
 
-#ut.dateFormat(ordersWithReturns)
-ordersWithReturns['Process.Time'] = ordersWithReturns['Ship.Date'] - ordersWithReturns['Order.Date']
-ordersWithReturns['Process.Time'] = ordersWithReturns['Process.Time'].apply(lambda x: x.days)
+    #ut.dateFormat(orders)
+    orders['Process.Time'] = orders['Ship.Date'] - orders['Order.Date']
+    orders['Process.Time'] = orders['Process.Time'].apply(lambda x: x.days)
 
-#### Step 3:
+    #### Step 3:
 
-# - If a product has been returned before, it may be returned again.
-# - Let us generate a feature indictes how many times the product has been returned before.
-# - If it never got returned, we just impute using 0.
-# - ***Hint:*** Group by different Product.ID
-returnsByProduct = ordersWithReturns[ordersWithReturns['Returned'] == 'Yes'].groupby('Product.ID')[['Returned']].count()
-returnsByProduct.reset_index(inplace=True)
-ordersWithReturns = ordersWithReturns.merge(returnsByProduct, on='Product.ID', how='left')
-ordersWithReturns.rename(columns={'Returned_y': 'Returned_Count', 'Returned_x':'Returned'}, inplace=True)
-ordersWithReturns['Returned_Count'] = ordersWithReturns['Returned_Count'].fillna(0)
-ut.convertColumns(ordersWithReturns, columns=['Returned_Count'], newType=int)
-print('Finished Data Mods.')
+    # - If a product has been returned before, it may be returned again.
+    # - Let us generate a feature indictes how many times the product has been returned before.
+    # - If it never got returned, we just impute using 0.
+    # - ***Hint:*** Group by different Product.ID
+    returnsByProduct = orders[orders['Returned'] == 'Yes'].groupby('Product.ID')[['Returned']].count()
+    returnsByProduct.reset_index(inplace=True)
+    orders = orders.merge(returnsByProduct, on='Product.ID', how='left')
+    orders.rename(columns={'Returned_y': 'Returned_Count', 'Returned_x': 'Returned'}, inplace=True)
+    orders['Returned_Count'] = orders['Returned_Count'].fillna(0)
+    ut.convertColumns(orders, columns=['Returned_Count'], newType=int)
+    print('Finished Data Mods.')
+    return orders

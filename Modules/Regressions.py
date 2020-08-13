@@ -1,11 +1,15 @@
 ### Problem 5: Fitting Models
 from sklearn.ensemble import GradientBoostingRegressor
-
-from Modules.Main import *
-from sklearn.model_selection import StratifiedKFold, GridSearchCV
-from sklearn.linear_model import LogisticRegression, Ridge
+from sklearn.model_selection import StratifiedShuffleSplit, train_test_split, GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 from typing import List, Dict, Callable
-
+import pandas as pd
+import Modules.Util as ut
+import matplotlib.pyplot as plt
+import numpy as np
+import openpyxl
+from sklearn.metrics import confusion_matrix
 
 # - You can use any binary classification method you have learned so far.
 # - Use 80/20 training and test splits to build your model.
@@ -40,15 +44,12 @@ class Regression:
         #     featureSelection = self.model.feature_importances_
         #     print(featureSelection)
 
-        self.trainRMSE = self.getRMSE(yTrain, self.modelCV.predict(xTrain))
-        self.testRMSE = self.getRMSE(yTest, self.modelCV.predict(xTest))
 
 
 
 
     def plotHyperParams(self, trainX, testX, trainY, testY, i):
-
-
+        plt.clf()
         for name, params in self.hyperparams.items():
             coefs = []
             intercepts = []
@@ -81,51 +82,39 @@ class Regression:
 def assembleModels():
 
     models = {
-    'Ridge'      :  Regression(Ridge(), 'Ridge', {'alpha': np.linspace(1,100,100)}),
+        # 'SVM': Regression(SVC(), 'Support Vector Classifier',
+        #        {'C': np.linspace(1, 100, 10),
+        #         'gamma': np.linspace(1e-7, 0.1, 10)}),
 
-    'Gradient Boost': Regression(GradientBoostingRegressor(), 'Gradient Boost',
-               {'learning_rate': np.linspace(.001, 0.1, 10),
-                'n_estimators': range(60, 80, 5),
-                'max_depth': range(1, 6),
-                'loss': ['ls']}), # use feature_importances for feature selection
+    'Log': Regression(LogisticRegression(), 'Logistic Regression', {'C': np.linspace(1e-6,100,40)})
     }
     return models
 
 def performRegressions(df: pd.DataFrame):
     models = assembleModels()
-    y = df['LogSalePrice']
+    y = df['Returned']
+    y.replace({'Yes': 1, 'No': 0}, inplace=True)
+    x = ut.scaleData(df.drop(columns=['Returned']), ['Sales', 'Discount', 'Profit', 'Shipping.Cost'])
+    trainTestData = train_test_split(x, y, test_size=0.3, random_state=0, stratify=y)
 
-
-
-
-
-    continuousColumns.remove('LogSalePrice')
-    x = scaleData(df.drop(columns=['LogSalePrice']), continuousColumns)
-    #x = df.drop(columns=['LogSalePrice'])
-    trainTestData = train_test_split(x, y, test_size=0.3, random_state=0)
-
-    #models['Ridge'].plotHyperParams(*trainTestData, 1)
-    # models['Lasso'].plotHyperParams(*trainTestData,2)
-    # models['Elastic Net'].plotHyperParams(*trainTestData)
-
-    # models['Ridge'].plotHyperParams(*trainTestData)
-    # models['SVM'].plotHyperParams(*trainTestData)
     i=0
     for name, model in models.items():
-        model.plotHyperParams(*trainTestData,i)
+        ut.getExecutionTime(lambda: model.plotHyperParams(*trainTestData, i))
         i+=1
 
-    models['Ridge'].time,          returnValue = ut.getExecutionTime(lambda: models['Ridge'].fitCV(*trainTestData))
-    models['Gradient Boost'].time, returnValue = ut.getExecutionTime(lambda: models['Gradient Boost'].fitCV(*trainTestData))
+    #models['SVM'].time, returnValue = ut.getExecutionTime(lambda: models['SVM'].fitCV(*trainTestData))
+    models['Log'].time, returnValue = ut.getExecutionTime(lambda: models['Log'].fitCV(*trainTestData))
 
-    results = pd.DataFrame([r.__dict__ for r in models.values()]).drop(columns=['model', 'modelCV'] )
+    results = pd.DataFrame([r.__dict__ for r in models.values()]).drop(columns=['model', 'modelCV', 'hyperparams'] )
 
     roundColumns4Digits = ['trainScore', 'testScore']
     #roundColumns8Digits = ['trainRMSE', 'testRMSE']
     for c in roundColumns4Digits:
         results[c] = results[c].apply(ut.roundTraditional, args = (4,) )
 
-    results.to_excel('Output/Model Results.xlsx')
+    matrix = confusion_matrix(y,models['Log'].model.predict(x))
+    print(matrix)
+    results.to_excel('Model Results.xlsx')
     print('Finished Regressions')
     return models
 
@@ -137,11 +126,27 @@ def performRegressions(df: pd.DataFrame):
 
 ### Problem 6: Evaluating Models
 # - What is the best metric to evaluate your model. Is accuracy good for this case?
+#Since this is a classification problem, the gini coefficient is ideal
+
 # - Now you have multiple models, which one would you pick?
+# I pick Logistic Regression
+
 # - Can you get any clue from the confusion matrix? What is the meaning of precision and recall in this case? Which one do you care the most?
+# 49070 0
+# 2217  3
+
+#precision = 49070 / (49070 + 2217) = 49070 / 51287 = 0.96
+#recall = 49070 / (49070 + 0) = 1
+
+# the confusion matrix shows that the model is NOT good at predicting which orders will be returned.
+# It predicts that most orders will not be returned, which is correct simply because few orders are returned.
+# The model is lacking the underlying trend that explains why orders are returned.
+
 # How will your model help the manager make decisions?
-# - **Note:** The last question is open-ended. Your answer could be completely different depending on your understanding of this business problem.
+# Clearly the model is lacking the information needed to predict order returns.
+
 
 ### Problem 7: Feature Engineering Revisit
 # - Is there anything wrong with the new feature we generated? How should we fix it?
-# - ***Hint***: For the real test set, we do not know it will get returned or not.
+# order process time will not be known when the predictions are made. This is an example of data leakage
+# the issue can be fixed by creating a model that will predict order time.
